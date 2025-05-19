@@ -1,0 +1,4 @@
+yt-dlp~=2025.4.30
+humanize~=4.12.3
+discord.py~=2.5.2
+python-dotenv~=1.1.0
