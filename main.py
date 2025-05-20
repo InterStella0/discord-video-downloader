@@ -18,12 +18,6 @@ load_dotenv()
 bot = StellaVideoBot()
 
 
-@bot.command()
-async def sync(ctx: Context):
-    cmds = await bot.tree.sync(guild=ctx.guild)
-    await ctx.send(f"Synced {len(cmds)}")
-
-
 @bot.hybrid_command(help="Download videos from popular platform via a URL.")
 @app_commands.describe(
     link="Shared video link to be downloaded. Supports YouTube, TikTok, Instagram, Twitter (X), twitch, bilibili.",
@@ -32,7 +26,7 @@ async def sync(ctx: Context):
 async def download(ctx: Context, link: URLParsed, file_type: FileType) -> None:
     url_context.set(link)
     color = 0xffcccb
-    embed = discord.Embed(title=link.type, description=f"Link: {link.url}", color=color)
+    embed = discord.Embed(title=link.type, description=f"**Link:** {link.url}\nFetching metadata...", color=color)
     msg = await ctx.send(embed=embed, ephemeral=True)
     last_update: datetime.datetime | None = None
     loading = itertools.cycle([".", "..", "..."])
@@ -44,7 +38,7 @@ async def download(ctx: Context, link: URLParsed, file_type: FileType) -> None:
         last_update = discord.utils.utcnow()
         current = humanize.naturalsize(progress.current)
         total = humanize.naturalsize(progress.total)
-        desc = f"{filename} [{current}/**{total}**] ({progress.percent:.2%}) ETA {progress.eta}"
+        desc = f"[{current}/**{total}**] ({progress.percent:.2%}) ETA {progress.eta}"
 
         embed_ = discord.Embed(title=f"{progress.type.capitalize()} `[{next(loading)}]`", description=desc, color=color)
         await msg.edit(embed=embed_)
@@ -73,6 +67,8 @@ async def on_command_error(ctx: Context, error: commands.CommandError) -> None:
         embed = discord.Embed(color=discord.Color.red(), title=title, description=str(error))
         await ctx.send(embed=embed, ephemeral=True)
     else:
+        embed = discord.Embed(color=discord.Color.red(), title="Something went wrong", description=str(ori_error))
+        await ctx.send(embed=embed, ephemeral=True)
         raise SomethingWentWrong() from ori_error
 
 if __name__ == "__main__":
