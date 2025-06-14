@@ -6,6 +6,7 @@ import os
 import discord
 from discord.ext import commands
 
+from core.errors import InvalidToken
 
 VERSION = "0.0.2"
 
@@ -36,6 +37,7 @@ class StellaVideoBot(commands.Bot):
     async def after_ready(self):
         await self.wait_until_ready()
         link_auth = discord.utils.oauth_url(self.user.id, scopes=None)
+        logging.info("Success!")
         logging.info(f"You can install your discord bot into your discord client by this link: {link_auth}")
 
     async def setup_hook(self) -> None:
@@ -51,9 +53,9 @@ class StellaVideoBot(commands.Bot):
         try:
             token = os.environ["DISCORD_TOKEN"]
         except KeyError:
-            raise RuntimeError("Discord token is missing! Please refer to ")
+            raise InvalidToken("Discord token is missing")
 
         try:
             super().run(token, root_logger=True)
         except discord.LoginFailure:
-            raise RuntimeError(f'"{token}" is an invalid discord token. Please refer to the guide: ') from None
+            raise InvalidToken(f'"{token}" is an invalid discord token') from None

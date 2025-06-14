@@ -18,3 +18,11 @@ class ErrorProcessing(DisplayError):
 
 class UploadError(DisplayError):
     pass
+
+
+class InvalidToken(RuntimeError):
+    def __init__(self, message: str):
+        super().__init__(
+            f"{message}. Please refer to the guide: "
+            f"https://github.com/InterStella0/discord-video-downloader/blob/main/docs/discord-setup.md#token-generation"
+        )
