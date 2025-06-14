@@ -23,6 +23,8 @@ bot = StellaVideoBot()
     link="Shared video link to be downloaded. Supports YouTube, TikTok, Instagram, Twitter (X), twitch, bilibili.",
     file_type="Supported Type (video, audio)"
 )
+@app_commands.user_install()
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 async def download(ctx: Context, link: URLParsed, file_type: FileType) -> None:
     url_context.set(link)
     color = 0xffcccb

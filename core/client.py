@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -6,17 +7,18 @@ import discord
 from discord.ext import commands
 
 
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 
 
 class StellaVideoBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
+        self.startup_path = ".startup.json"
         super().__init__(os.environ.get("DISCORD_MESSAGE_PREFIX", "!"), intents=intents)
 
     def check_startup_once(self):
         current = None
-        startup = ".startup.json"
+        startup = self.startup_path
         if not os.path.exists(startup):
             with open(startup, "w") as f:
                 json.dump({"VERSION": VERSION}, f, indent=4)
@@ -27,17 +29,31 @@ class StellaVideoBot(commands.Bot):
 
         return current != VERSION
 
+    def update_versioning(self):
+        with open(self.startup_path, "w") as f:
+            json.dump({"VERSION": VERSION}, f, indent=4)
+
+    async def after_ready(self):
+        await self.wait_until_ready()
+        link_auth = discord.utils.oauth_url(self.user.id, scopes=None)
+        logging.info(f"You can install your discord bot into your discord client by this link: {link_auth}")
+
     async def setup_hook(self) -> None:
         if self.check_startup_once():
             cmds = await self.tree.sync()
             logging.info(f"Synced {len(cmds)}")
+            self.update_versioning()
 
         logging.info(f"Bot version {VERSION}")
+        asyncio.create_task(self.after_ready())
 
     def starting(self):
         try:
             token = os.environ["DISCORD_TOKEN"]
         except KeyError:
-            raise RuntimeError("Discord token is missing!")
+            raise RuntimeError("Discord token is missing! Please refer to ")
 
-        super().run(token, root_logger=True)
+        try:
+            super().run(token, root_logger=True)
+        except discord.LoginFailure:
+            raise RuntimeError(f'"{token}" is an invalid discord token. Please refer to the guide: ') from None
