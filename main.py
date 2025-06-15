@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import itertools
 import tempfile
@@ -46,7 +47,16 @@ async def download_flow(sender: Context, link: URLParsed, file_type: FileType):
         embed = discord.Embed(title=f"Uploading `[{next(loading)}]`", description="Please be nice...", color=color)
         try:
             await msg.edit(embed=embed)
-            await msg.edit(content=None, attachments=[discord.File(filename, filename=f"file.{file_type}")], embed=None)
+            try:
+                url = await bot.upload_file(filename)
+            except UploadError as e:
+                embed = discord.Embed(title=f"Uploading `[{next(loading)}]`", description=f"{e}, fallback to discord.", color=color)
+                await msg.edit(embed=embed)
+                await asyncio.sleep(1)
+                await msg.edit(content=None, attachments=[discord.File(filename, filename=f"file.{file_type}")], embed=None)
+            else:
+                embed = discord.Embed(title=f"Finished~", description=f"You can download it: \n{url}", color=color)
+                await msg.edit(embed=embed)
         except discord.HTTPException as e:
             if e.status == 413:
                 raise UploadError("File is too large to be uploaded to Discord.")

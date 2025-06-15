@@ -3,10 +3,11 @@ import json
 import logging
 import os
 
+import aiohttp
 import discord
 from discord.ext import commands
 
-from core.errors import InvalidToken
+from core.errors import InvalidToken, SomethingWentWrong, UploadError
 
 VERSION = "0.0.3"
 
@@ -14,8 +15,33 @@ VERSION = "0.0.3"
 class StellaVideoBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
-        self.startup_path = ".startup.json"
+        self.startup_path: str = ".startup.json"
         super().__init__(os.environ.get("DISCORD_MESSAGE_PREFIX", "!"), intents=intents)
+        self.session: aiohttp.ClientSession | None = None
+        self.upload_url: str = os.environ.get("UPLOAD_URL", "https://tmpfiles.org/api/v1/upload")
+
+    async def close(self) -> None:
+        if self.session:
+            await self.session.close()
+
+        await super().close()
+
+    async def upload_file(self, file_path: str):
+        if self.session is None:
+            self.session = aiohttp.ClientSession()
+
+        with open(file_path, 'rb') as f:
+            data = aiohttp.FormData()
+            data.add_field('file', f, filename=file_path.split('/')[-1])
+
+            async with self.session.post(self.upload_url, data=data) as response:
+                result = await response.json()
+                try:
+                    if result['status'] != 'success':
+                        raise UploadError("Couldn't upload to `tmpfiles.org`")
+                    return result['data']['url']
+                except Exception:
+                    raise UploadError("Weird response from tmpfiles.org")
 
     def check_startup_once(self):
         current = None
