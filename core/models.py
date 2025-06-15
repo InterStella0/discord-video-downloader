@@ -7,7 +7,7 @@ import re
 import time
 from abc import abstractmethod
 from enum import StrEnum
-from typing import Self, Callable, Awaitable, Any, Literal
+from typing import Self, Callable, Awaitable, Any, Literal, TypeVar, Generic
 
 import discord.ui
 import yt_dlp
@@ -35,6 +35,7 @@ class URLParsed:
         self.listeners: list[DownloadListener] = []
         self.url: str = url
         self.groups: re.Match = groups
+        self.preset: CompressionType = CompressionType.hd
         self._last_dispatch_time = 0
 
     @property
@@ -125,9 +126,76 @@ class YouTubeDownloader(URLParsed):
             ))
         )
 
+    def get_video_compression_preset(self) -> list[str]:
+        audio_bitrate: str = '128k'
+        if self.preset is CompressionType.low:
+            return [
+                '-c:v', 'libx264',
+                '-preset', 'veryfast',
+                '-crf', '32',
+                '-profile:v', 'baseline',
+                '-pix_fmt', 'yuv420p',
+                '-c:a', 'aac',
+                '-b:a', audio_bitrate,
+                '-movflags', '+faststart'
+            ]
+        elif self.preset is CompressionType.medium:
+            return [
+                '-c:v', 'libx264',
+                '-preset', 'medium',
+                '-crf', '28',
+                '-profile:v', 'main',
+                '-pix_fmt', 'yuv420p',
+                '-c:a', 'aac',
+                '-b:a', audio_bitrate,
+                '-movflags', '+faststart'
+            ]
+        elif self.preset is CompressionType.hd:
+            return [
+                '-c:v', 'libx264',
+                '-preset', 'slow',
+                '-crf', '23',
+                '-profile:v', 'high',
+                '-pix_fmt', 'yuv420p',
+                '-c:a', 'aac',
+                '-b:a', audio_bitrate,
+                '-movflags', '+faststart'
+            ]
+        elif self.preset is CompressionType.original:
+            return [
+                '-c', 'copy'
+            ]
+        else:
+            raise RuntimeError("Unregistered compression.")
+
+    def get_audio_compression_preset(self) -> dict[str, str]:
+        if self.preset is CompressionType.low:
+            return {
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '64',
+            }
+        elif self.preset is CompressionType.medium:
+            return {
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '128',
+            }
+        elif self.preset is CompressionType.hd:
+            return {
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '256',
+            }
+        elif self.preset is CompressionType.original:
+            return {
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'wav',
+            }
+        else:
+            raise RuntimeError("Unregistered compression.")
 
     async def download(self, file: str, file_type: FileType) -> None:
-        audio_bitrate = '128k'
         event_loop = asyncio.get_running_loop()
         ydl_opts = {}
         if file_type is FileType.video:
@@ -137,16 +205,7 @@ class YouTubeDownloader(URLParsed):
                 'quiet': True,
                 'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
                 'merge_output_format': 'mp4',
-                'postprocessor_args': [
-                    '-c:v', 'libx264',
-                    '-preset', 'slow',
-                    '-crf', '23',
-                    '-profile:v', 'high',
-                    '-pix_fmt', 'yuv420p',
-                    '-c:a', 'aac',
-                    '-b:a', audio_bitrate,
-                    '-movflags', '+faststart'
-                ],
+                'postprocessor_args': self.get_video_compression_preset(),
             }
         elif file_type is FileType.audio:
             if file.endswith(".mp3"):
@@ -156,13 +215,7 @@ class YouTubeDownloader(URLParsed):
                 'noplaylist': True,
                 'quiet': True,
                 'format': 'bestaudio/best',
-                'postprocessors': [
-                    {
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': 'mp3',
-                        'preferredquality': '256',
-                    }
-                ],
+                'postprocessors': [self.get_audio_compression_preset()],
             }
 
         ydl_opts['progress_hooks'] = [functools.partial(self._progress_hook, event_loop)]
@@ -194,6 +247,12 @@ class FileType(StrEnum):
     audio = "mp3"
 
 
+class CompressionType(StrEnum):
+    low = "low"
+    medium = "medium"
+    hd = "hd"
+    original = "original"
+
 
 PARSERS = [
     YouTubeDownloader,
@@ -202,24 +261,40 @@ PARSERS = [
     TwitterDownloader,
     BiliBiliDownloader
 ]
+T = TypeVar('T', bound=StrEnum)
 
-class ViewFormatType(discord.ui.View):
+class ViewAnswer(discord.ui.View, Generic[T]):
     def __init__(self):
-        super().__init__(timeout=10)
-        self.answer: FileType | None = None
+        super().__init__()
+        self.answer: T | None = None
 
-    async def wait_for(self) -> FileType:
+    @classmethod
+    async def ask(cls, ctx: Context, content: str, delete_timeout=False) -> T:
+        self = cls()
+        msg = await ctx.send(content, view=self, ephemeral=True)
+        try:
+            value = await self.wait_for()
+        except TimeoutResponding:
+            if delete_timeout:
+                await msg.delete(delay=0)
+            raise
+
+        await msg.delete(delay=0)
+        return value
+
+    async def wait_for(self) -> T:
         await self.wait()
         if self.answer is None:
             raise TimeoutResponding("Timeout waiting for user to respond.")
 
         return self.answer
 
-    async def responded(self, interaction: discord.Interaction, file_type: FileType):
+    async def responded(self, interaction: discord.Interaction, file_type: T) -> None:
         await interaction.response.defer()
         self.answer = file_type
         self.stop()
 
+class ViewFormatType(ViewAnswer[FileType]):
     @discord.ui.button(label='Video', style=discord.ButtonStyle.blurple)
     async def vid(self, interaction: discord.Interaction, _button: discord.ui.Button):
         await self.responded(interaction, FileType.video)
@@ -227,3 +302,21 @@ class ViewFormatType(discord.ui.View):
     @discord.ui.button(label='Audio', style=discord.ButtonStyle.blurple)
     async def aud(self, interaction: discord.Interaction, _button: discord.ui.Button):
         await self.responded(interaction, FileType.audio)
+
+
+class ViewCompressionType(ViewAnswer[CompressionType]):
+    @discord.ui.button(label='low', style=discord.ButtonStyle.blurple)
+    async def low(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        await self.responded(interaction, CompressionType.low)
+
+    @discord.ui.button(label='medium', style=discord.ButtonStyle.blurple)
+    async def med(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        await self.responded(interaction, CompressionType.medium)
+
+    @discord.ui.button(label='HD', style=discord.ButtonStyle.blurple)
+    async def hd(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        await self.responded(interaction, CompressionType.hd)
+
+    @discord.ui.button(label='Original', style=discord.ButtonStyle.blurple)
+    async def ori(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        await self.responded(interaction, CompressionType.original)

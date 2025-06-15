@@ -9,7 +9,7 @@ from discord.ext import commands
 
 from core.errors import InvalidToken, SomethingWentWrong, UploadError
 
-VERSION = "0.0.3"
+VERSION = "0.0.4"
 
 
 class StellaVideoBot(commands.Bot):

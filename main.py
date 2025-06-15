@@ -10,8 +10,8 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 from core.client import StellaVideoBot
-from core.errors import UploadError, SomethingWentWrong, DisplayError, UserErrorUsage
-from core.models import URLParsed, FileType, Progress, ViewFormatType
+from core.errors import UploadError, SomethingWentWrong, DisplayError, UserErrorUsage, TimeoutResponding
+from core.models import URLParsed, FileType, Progress, ViewFormatType, CompressionType, ViewCompressionType
 from core.types import Context, Interaction
 from core.utils import FIND_CAMEL, url_context
 
@@ -19,10 +19,16 @@ load_dotenv()
 bot = StellaVideoBot()
 
 
-async def download_flow(sender: Context, link: URLParsed, file_type: FileType):
+async def download_flow(sender: Context, link: URLParsed, file_type: FileType, compression: CompressionType):
     url_context.set(link)
     color = 0xffcccb
-    embed = discord.Embed(title=link.type, description=f"**Link:** {link.url}\nFetching metadata...", color=color)
+    embed = discord.Embed(
+        title=link.type,
+        description=f"**Link:** {link.url}\nFetching metadata...\n"
+                    f"**Type:** {file_type.name}\n"
+                    f"**Preset:**: {compression}",
+        color=color
+    )
     msg = await sender.send(embed=embed, ephemeral=True)
 
     last_update: datetime.datetime | None = None
@@ -43,6 +49,7 @@ async def download_flow(sender: Context, link: URLParsed, file_type: FileType):
     link.add_listener(listen)
     with tempfile.TemporaryDirectory() as tmp:
         filename = f"{tmp}/file.{file_type}"
+        link.preset = compression
         await link.download(filename, file_type)
         embed = discord.Embed(title=f"Uploading `[{next(loading)}]`", description="Please be nice...", color=color)
         try:
@@ -71,8 +78,8 @@ async def download_flow(sender: Context, link: URLParsed, file_type: FileType):
 )
 @app_commands.user_install()
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-async def download(ctx: Context, link: URLParsed, file_type: FileType) -> None:
-    await download_flow(ctx, link, file_type)
+async def download(ctx: Context, link: URLParsed, file_type: FileType, compression: CompressionType = CompressionType.medium) -> None:
+    await download_flow(ctx, link, file_type, compression)
 
 
 @bot.tree.context_menu(name="download video")
@@ -92,12 +99,16 @@ async def context_download(interaction: Interaction, message: discord.Message) -
             raise UserErrorUsage("No URL with a compatible parser found in this message!")
 
     ctx = await bot.get_context(interaction)
-    view = ViewFormatType()
-    msg = await ctx.send(f"Found `{url_parsed.url}` compatible with **{url_parsed.type}**."
-                   f"\nSelect a format:", view=view, ephemeral=True)
-    file_type = await view.wait_for()
-    await msg.delete(delay=0)
-    await download_flow(ctx, url_parsed, file_type)
+    file_type = await ViewFormatType.ask(ctx,
+        f"Found `{url_parsed.url}` compatible with **{url_parsed.type}**."
+        f"\nSelect a format:"
+    )
+    try:
+        preset = await ViewCompressionType.ask(ctx, f"\nSelect a compression preset:")
+    except TimeoutResponding:
+        preset = CompressionType.medium
+
+    await download_flow(ctx, url_parsed, file_type, preset)
 
 
 @bot.tree.error
