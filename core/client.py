@@ -8,7 +8,7 @@ from discord.ext import commands
 
 from core.errors import InvalidToken
 
-VERSION = "0.0.2"
+VERSION = "0.0.3"
 
 
 class StellaVideoBot(commands.Bot):

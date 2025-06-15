@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import dataclasses
 import functools
 import re
@@ -10,14 +9,11 @@ from abc import abstractmethod
 from enum import StrEnum
 from typing import Self, Callable, Awaitable, Any, Literal
 
+import discord.ui
 import yt_dlp
-from discord import app_commands
-from discord.ext import commands
 
-from core.errors import UserErrorUsage, ErrorProcessing
+from core.errors import UserErrorUsage, ErrorProcessing, TimeoutResponding
 from core.types import Context, Interaction
-from yt_dlp import YoutubeDL
-
 from core.utils import FIND_CAMEL
 
 
@@ -82,6 +78,12 @@ class URLParsed:
 
 class YouTubeDownloader(URLParsed):
     pattern = re.compile(r"(?:https?://)?(?:www\.)?(?:youtube\.com/(?:watch\?v=|shorts/)|youtu\.be/)([A-Za-z0-9_-]{11})")
+
+    @property
+    def type(self):
+        if self.__class__ is YouTubeDownloader:
+            return "YouTube Downloader"
+        return super().type
 
     def _progress_hook(self, event_loop: asyncio.BaseEventLoop, d: dict[str, Any]):
         if d['status'] != 'downloading':
@@ -204,3 +206,27 @@ PARSERS = [
     BiliBiliDownloader
 ]
 
+class ViewFormatType(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=10)
+        self.answer: FileType | None = None
+
+    async def wait_for(self) -> FileType:
+        await self.wait()
+        if self.answer is None:
+            raise TimeoutResponding("Timeout waiting for user to respond.")
+
+        return self.answer
+
+    async def responded(self, interaction: discord.Interaction, file_type: FileType):
+        await interaction.response.defer()
+        self.answer = file_type
+        self.stop()
+
+    @discord.ui.button(label='Video', style=discord.ButtonStyle.blurple)
+    async def vid(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        await self.responded(interaction, FileType.video)
+
+    @discord.ui.button(label='Audio', style=discord.ButtonStyle.blurple)
+    async def aud(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        await self.responded(interaction, FileType.audio)

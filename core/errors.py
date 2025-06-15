@@ -11,6 +11,9 @@ class SomethingWentWrong(DisplayError):
 class UserErrorUsage(DisplayError):
     pass
 
+class TimeoutResponding(DisplayError):
+    pass
+
 
 class ErrorProcessing(DisplayError):
     pass
