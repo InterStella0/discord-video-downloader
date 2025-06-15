@@ -1,10 +1,12 @@
 # Discord Video Downloader
-Self-host discord-bot for downloading videos from popular sites via a URL. 
+Self-host discord bot for downloading videos from popular sites via a URL. 
 Supports YouTube, TikTok, Instagram, Twitter (x.com), bilibili
 and Twitch Clips.
 
 This is meant to be an easy deployment for users who want to self-host
-discord bots that can download videos from YouTube, TikTok, etc.
+discord bots that can download videos from YouTube, TikTok, and other platforms.
+
+![demo-download-yt.gif](docs/media/demo-download-yt.gif)
 
 # Install and deploy
 1. Create a discord bot and copy your discord bot token. Follow [this guide](/docs/discord-setup.md#token-generation).
