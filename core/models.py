@@ -38,23 +38,23 @@ class URLParsed:
         self._last_dispatch_time = 0
 
     @property
-    def type(self):
+    def type(self) -> str:
         return FIND_CAMEL.sub(' ', self.__class__.__name__)
 
-    def add_listener(self, call: DownloadListener):
+    def add_listener(self, call: DownloadListener) -> None:
         self.listeners.append(call)
 
-    async def dispatch_progress(self, progress: Progress):
+    async def dispatch_progress(self, progress: Progress) -> None:
         async with asyncio.TaskGroup() as group:
             for listen in self.listeners:
                 group.create_task(listen(progress))
 
     @abstractmethod
-    async def download(self, file: str, file_type: FileType):
+    async def download(self, file: str, file_type: FileType) -> None:
         pass
 
     @classmethod
-    def from_url(cls, url: str):
+    def from_url(cls, url: str) -> Self:
         matched = cls.pattern.search(url)
         return cls(url=url, groups=matched)
 
@@ -79,12 +79,12 @@ class YouTubeDownloader(URLParsed):
     pattern = re.compile(r"(?:https?://)?(?:www\.)?(?:youtube\.com/(?:watch\?v=|shorts/)|youtu\.be/)([A-Za-z0-9_-]{11})")
 
     @property
-    def type(self):
+    def type(self) -> str:
         if self.__class__ is YouTubeDownloader:
             return "YouTube Downloader"
         return super().type
 
-    def _progress_hook(self, event_loop: asyncio.BaseEventLoop, d: dict[str, Any]):
+    def _progress_hook(self, event_loop: asyncio.BaseEventLoop, d: dict[str, Any]) -> None:
         if d['status'] != 'downloading':
             if d['status'] == 'finished':
                 event_loop.create_task(
@@ -126,9 +126,8 @@ class YouTubeDownloader(URLParsed):
         )
 
 
-    async def download(self, file: str, file_type: FileType):
-        video_bitrate = '800k'
-        audio_bitrate = '64k'
+    async def download(self, file: str, file_type: FileType) -> None:
+        audio_bitrate = '128k'
         event_loop = asyncio.get_running_loop()
         ydl_opts = {}
         if file_type is FileType.video:
@@ -138,12 +137,12 @@ class YouTubeDownloader(URLParsed):
                 'quiet': True,
                 'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
                 'merge_output_format': 'mp4',
-
                 'postprocessor_args': [
                     '-c:v', 'libx264',
-                    '-b:v', video_bitrate,
-                    '-preset', 'medium',
-                    '-profile:v', 'main',
+                    '-preset', 'slow',
+                    '-crf', '23',
+                    '-profile:v', 'high',
+                    '-pix_fmt', 'yuv420p',
                     '-c:a', 'aac',
                     '-b:a', audio_bitrate,
                     '-movflags', '+faststart'
@@ -161,7 +160,7 @@ class YouTubeDownloader(URLParsed):
                     {
                         'key': 'FFmpegExtractAudio',
                         'preferredcodec': 'mp3',
-                        'preferredquality': '192',
+                        'preferredquality': '256',
                     }
                 ],
             }
