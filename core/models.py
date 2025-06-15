@@ -27,6 +27,7 @@ class Progress:
     speed: float | None
     eta: str | None
 
+
 DownloadListener = Callable[[Progress], Awaitable[None]]
 class URLParsed:
     pattern: re.compile
@@ -72,8 +73,6 @@ class URLParsed:
     @classmethod
     async def transform(cls, interaction: Interaction, value: str, /) -> Self:
         return await cls.parse(value)
-
-
 
 
 class YouTubeDownloader(URLParsed):
@@ -175,7 +174,6 @@ class YouTubeDownloader(URLParsed):
                 raise ErrorProcessing(f"Couldn't download {self.url}.")
 
 
-
 class TikTokDownloader(YouTubeDownloader):
     pattern = re.compile(r'https?://((?:vm|vt|www)\.)?tiktok\.com/.*')
 
@@ -185,11 +183,11 @@ class TwitterDownloader(YouTubeDownloader):
 
 
 class TwitchClipsDownloader(YouTubeDownloader):
-    pattern = re.compile(r'https?:\/\/(?:www\.)?twitch\.tv\/(?:[a-zA-Z0-9_]+\/)?clip\/([a-zA-Z0-9_-]+)')
+    pattern = re.compile(r'https?://(?:www\.)?twitch\.tv/(?:[a-zA-Z0-9_]+/)?clip/([a-zA-Z0-9_-]+)')
 
 
 class BiliBiliDownloader(YouTubeDownloader):
-    pattern = re.compile(r'https?:\/\/(?:www\.)?bilibili\.com\/video\/(av\d+|BV[a-zA-Z0-9]+)\/?')
+    pattern = re.compile(r'https?://(?:www\.)?bilibili\.com/video/(av\d+|BV[a-zA-Z0-9]+)/?')
 
 
 class FileType(StrEnum):
